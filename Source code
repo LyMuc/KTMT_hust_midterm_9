@@ -1,0 +1,157 @@
+.data
+message: .asciiz "Number of students: "
+message2: .asciiz "Name of student: "
+message3: .asciiz "Mark of student: "
+message4: .asciiz "Not an English name. Please retype it."
+message5: .asciiz "Invalid mark. The mark must be a float number, between 0 and 10. Please retype it." 
+message6: .asciiz "The number of students can't exceed 1000. Please retype it."
+message7: .asciiz "The list of students who haven't passed Maths is:\n"
+message8: .asciiz "None"
+name: .space 40000 #string contains name of students like an array of string
+not_pass: .space 40002 #string contains the name of students who haven't passed Maths to print like a list
+mark: .float 0.0 #array of float to store mark
+blank_space: .space 4000 #Reserved Memory for mark array
+mark0: .float 0.0 #Float constant to compare
+mark5: .float 5.0 #Float constant to compare
+mark10: .float 10.0 #Float constant to compare
+.text
+input_number_of_students:
+	li $v0, 51
+	la $a0, message
+	syscall
+	li $t9, 1000
+	bgt $a0, $t9, error #If the number of students exceed 1000, then retype it.
+	j end_of_input_number_of_students
+		error:	
+		li $v0, 55
+		la $a0, message6
+		li $a1, 0
+		syscall	
+	j input_number_of_students
+end_of_input_number_of_students:
+
+la $s0, name #Load the base address of the array of string name
+la $s4, mark #Load the base address of the array of float number mark
+add $s2, $a0, $zero #s2 contains number of students
+li $s3, 0 #Count variable for loop input_name_and_mark
+input_name_and_mark:
+	beq $s3, $s2, end_input_name_and_mark #If count variable=number of students then done input
+	li $v0, 54
+	la $a0, message2 #input name message
+	la $a1, ($s0) 
+	li $a2, 40 #The maximum length of name is 40  
+	syscall
+
+check_valid_name: #Name can contain non-alphabetic characters(except for whitespace), so we have to check it.
+li $t0, 32 #t0=32: ascii code of 'space' character
+li $t6, 'A'
+li $t7, 'Z'
+li $t8, 'a'
+li $t9, 'z'
+la $s1, ($s0) #s1: Base address of the input string name
+	check:
+	lb $t1, 0($s1) #Check each character of the name, one by one
+	li $t2, 10 #t2=10: ascii code of '\n' character
+	beq $t1, $t2, end_check_valid_name #If reach the end of the string, then done(input is a valid English name)
+	beq $t1, $t0, loop_check #If the character is a whitespace then continue checking
+	blt $t1, $t6, done_not_a_name #If the character has the ascii code < 'A' ascii code, then not an alphabetic character=>Retype
+	bgt $t1, $t9, done_not_a_name #If the character has the ascii code > 'z' ascii code, then not an alphabetic character=>Retype
+	slt $t3, $t1, $t8 #compare the character's ascii code with 97 (ascii code of 'a')
+	slt $t4, $t7, $t1 #compare the character's ascii code with 90 (ascii code of 'Z')
+	and $t5, $t3, $t4 
+	bne $t5, $zero, done_not_a_name #If the character has the ascii code >'Z' but <'a', then not an alphabetic character=>Retype
+	loop_check:
+	addi $s1, $s1, 1 #Increase the address by 1 for check_valid_name loop
+	j check
+	done_not_a_name:
+	li $v0, 55
+	la $a0, message4 #Print message error 
+	li $a1, 0
+	syscall
+j input_name_and_mark
+end_check_valid_name:
+
+input_mark:
+	li $v0, 52
+	la $a0, message3 #Message for input mark
+	syscall
+#check_valid_mark
+	li $t9, -1
+	beq $a1, $t9, done_not_a_mark #Means that input data cannot be correctly parsed (Not a float number)=>Retype
+	l.s $f1, mark10 #f1=10
+	l.s $f3, mark0 #f2=0
+	c.lt.s $f0, $f3 #If mark<0 then retype
+	bc1t done_not_a_mark #branch to done_not_a_mark
+	c.lt.s $f1, $f0 #If mark>10 then retype
+	bc1t done_not_a_mark #branch to done_not_a_mark
+	s.s $f0, ($s4) #Store the input mark to mark array
+	j loop_input_name_and_mark #If input mark is valid, then continue input the next name and mark
+	done_not_a_mark:
+	li $v0, 55
+	la $a0, message5 #Message for invalid mark
+	li $a1, 0
+	syscall
+j input_mark #If invalid mark, then retype it.
+
+loop_input_name_and_mark:
+addi $s3, $s3, 1 #Increse the count variable for loop input_name_and_mark
+addi $s0, $s0, 40 #Move to the next student name's address
+addi $s4, $s4, 4 #Move to the next student mark's address
+j input_name_and_mark
+end_input_name_and_mark:
+
+la $s0, name #Restore the base address of the string array name
+la $s4, mark #Restore the base address of the float array mark
+la $t7, not_pass #Base address of not_pass string 
+li $s3, 0 #Count variable=0
+
+check_not_pass_math:
+	beq $s3, $s2, print_not_pass #If have checked all the students, then print it.
+	l.s $f1, mark5 #f1=5
+	l.s $f0, ($s4) #f0=mark
+	c.lt.s $f0, $f1 #If mark<5
+	bc1f loop_check_not_pass #If the student passes maths, then continue loop
+#If the student doesn't pass maths, then copy names to string not_pass
+	addi $t8, $s0, 0 #Base address of each name
+	copy_name_to_not_pass:
+	lb $t1, 0($t8) #Traverse each character of the name, one by one
+	li $t2, 10 #t2=10: ascii code of '\n' character
+	beq $t1, $t2, add_endofline #If reach the end of name, then add end_of_line character
+	sb $t1, 0($t7) #Else continue copy this character to not_pass string
+	addi $t7, $t7, 1 #Increase the base address of not_pass string
+	addi $t8, $t8, 1 #Increase the base address of the considered name
+	j copy_name_to_not_pass
+
+	add_endofline:
+	li $t9, '\n' #t9=ascii code of end_of_line character
+	sb $t9, 0($t7) #Replace null character by end_of_line character
+	addi $t7, $t7, 1 #Increase the base address of not_pass string to reserve the '\n' character
+
+loop_check_not_pass:
+addi $s3, $s3, 1 #Increase the loop check_not_pass_math variable
+addi $s0, $s0, 40 #Points to the next name
+addi $s4, $s4, 4 #Points to the next mark
+j check_not_pass_math
+
+print_not_pass:
+	la $t7, not_pass
+	lb $t7, 0($t7)
+	bne $t7, $zero, not_none_pass #If not_pass string is not empty, then print it. Else print None(Message 8)
+	li $v0, 59
+	la $a0, message7
+	la $a1, message8 #Print none
+	syscall
+j quit
+not_none_pass:
+	li $v0, 59
+	la $a0, message7
+	la $a1, not_pass #Print list of students who haven't passed maths.
+	syscall
+quit:
+li $v0, 10 #terminate
+syscall
+
+#Sua code: In ten + diem.
+
+
+
